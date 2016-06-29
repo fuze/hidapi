@@ -172,7 +172,7 @@ static void register_error(hid_device *device, const char *op)
 		NULL,
 		GetLastError(),
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPVOID)&msg, 0/*sz*/,
+        (LPWSTR)&msg, 0/*sz*/,
 		NULL);
 	
 	/* Get rid of the CR and LF that FormatMessage() sticks at the
@@ -388,7 +388,6 @@ struct hid_device_info HID_API_EXPORT * HID_API_CALL hid_enumerate(unsigned shor
 			struct hid_device_info *tmp;
 			PHIDP_PREPARSED_DATA pp_data = NULL;
 			HIDP_CAPS caps;
-			BOOLEAN res;
 			NTSTATUS nt_res;
 			wchar_t wstr[WSTR_LEN]; /* TODO: Determine Size */
 			size_t len;
@@ -634,7 +633,7 @@ int HID_API_EXPORT HID_API_CALL hid_write(hid_device *dev, const unsigned char *
 		if (GetLastError() != ERROR_IO_PENDING) {
 			/* WriteFile() failed. Return error. */
 			register_error(dev, "WriteFile");
-			bytes_written = -1;
+			bytes_written = (DWORD)-1;
 			goto end_of_function;
 		}
 	}
@@ -645,7 +644,7 @@ int HID_API_EXPORT HID_API_CALL hid_write(hid_device *dev, const unsigned char *
 	if (!res) {
 		/* The Write operation failed. */
 		register_error(dev, "WriteFile");
-		bytes_written = -1;
+		bytes_written = (DWORD)-1;
 		goto end_of_function;
 	}
 
