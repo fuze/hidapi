@@ -91,7 +91,16 @@ extern "C" {
 		USHORT OutputReportByteLength;
 		USHORT FeatureReportByteLength;
 		USHORT Reserved[17];
-		USHORT fields_not_used_by_hidapi[10];
+		USHORT NumberLinkCollectionNodes;
+		USHORT NumberInputButtonCaps;
+		USHORT NumberInputValueCaps;
+		USHORT NumberInputDataIndices;
+		USHORT NumberOutputButtonCaps;
+		USHORT NumberOutputValueCaps;
+		USHORT NumberOutputDataIndices;
+		USHORT NumberFeatureButtonCaps;
+		USHORT NumberFeatureValueCaps;
+		USHORT NumberFeatureDataIndices;
 	} HIDP_CAPS, *PHIDP_CAPS;
 	typedef void* PHIDP_PREPARSED_DATA;
 	#define HIDP_STATUS_SUCCESS 0x110000
@@ -106,6 +115,9 @@ extern "C" {
 	typedef BOOLEAN (__stdcall *HidD_GetPreparsedData_)(HANDLE handle, PHIDP_PREPARSED_DATA *preparsed_data);
 	typedef BOOLEAN (__stdcall *HidD_FreePreparsedData_)(PHIDP_PREPARSED_DATA preparsed_data);
 	typedef NTSTATUS (__stdcall *HidP_GetCaps_)(PHIDP_PREPARSED_DATA preparsed_data, HIDP_CAPS *caps);
+	typedef NTSTATUS(__stdcall *HidP_GetCaps_)(PHIDP_PREPARSED_DATA preparsed_data, HIDP_CAPS *caps);
+	typedef NTSTATUS(__stdcall *HidP_GetButtonCaps_)(HIDP_REPORT_TYPE report_type, PHIDP_BUTTON_CAPS button_caps, PUSHORT button_caps_length, PHIDP_PREPARSED_DATA preparsed_data);
+	typedef NTSTATUS(__stdcall *HidP_SetData_)(HIDP_REPORT_TYPE ReportType, PHIDP_DATA DataList, PULONG DataLength, PHIDP_PREPARSED_DATA PreparsedData, PCHAR Report, ULONG ReportLength);
 	typedef BOOLEAN (__stdcall *HidD_SetNumInputBuffers_)(HANDLE handle, ULONG number_buffers);
 
 	static HidD_GetAttributes_ HidD_GetAttributes;
@@ -118,6 +130,8 @@ extern "C" {
 	static HidD_GetPreparsedData_ HidD_GetPreparsedData;
 	static HidD_FreePreparsedData_ HidD_FreePreparsedData;
 	static HidP_GetCaps_ HidP_GetCaps;
+	static HidP_GetButtonCaps_ HidP_GetButtonCaps;
+	static HidP_SetData_ HidP_SetData;
 	static HidD_SetNumInputBuffers_ HidD_SetNumInputBuffers;
 
 	static HMODULE lib_handle = NULL;
@@ -172,7 +186,7 @@ static void register_error(hid_device *device, const char *op)
 		NULL,
 		GetLastError(),
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPWSTR)&msg, 0/*sz*/,
+		(LPWSTR)&msg, 0/*sz*/,
 		NULL);
 	
 	/* Get rid of the CR and LF that FormatMessage() sticks at the
@@ -208,6 +222,8 @@ static int lookup_functions()
 		RESOLVE(HidD_GetPreparsedData);
 		RESOLVE(HidD_FreePreparsedData);
 		RESOLVE(HidP_GetCaps);
+		RESOLVE(HidP_GetButtonCaps);
+		RESOLVE(HidP_SetData);
 		RESOLVE(HidD_SetNumInputBuffers);
 #undef RESOLVE
 	}
