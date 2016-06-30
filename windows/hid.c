@@ -105,6 +105,58 @@ extern "C" {
 	typedef void* PHIDP_PREPARSED_DATA;
 	#define HIDP_STATUS_SUCCESS 0x110000
 
+	typedef struct _HIDP_BUTTON_CAPS
+	{
+		USAGE    UsagePage;
+		UCHAR    ReportID;
+		BOOLEAN  IsAlias;
+
+		USHORT   BitField;
+		USHORT   LinkCollection;   // A unique internal index pointer
+
+		USAGE    LinkUsage;
+		USAGE    LinkUsagePage;
+
+		BOOLEAN  IsRange;
+		BOOLEAN  IsStringRange;
+		BOOLEAN  IsDesignatorRange;
+		BOOLEAN  IsAbsolute;
+
+		ULONG    Reserved[10];
+		union {
+			struct {
+				USAGE    UsageMin, UsageMax;
+				USHORT   StringMin, StringMax;
+				USHORT   DesignatorMin, DesignatorMax;
+				USHORT   DataIndexMin, DataIndexMax;
+			} Range;
+			struct {
+				USAGE    Usage, Reserved1;
+				USHORT   StringIndex, Reserved2;
+				USHORT   DesignatorIndex, Reserved3;
+				USHORT   DataIndex, Reserved4;
+			} NotRange;
+		};
+
+	} HIDP_BUTTON_CAPS, *PHIDP_BUTTON_CAPS;
+
+	typedef enum _HIDP_REPORT_TYPE
+	{
+		HidP_Input,
+		HidP_Output,
+		HidP_Feature
+	} HIDP_REPORT_TYPE;
+
+	typedef struct _HIDP_DATA
+	{
+		USHORT  DataIndex;
+		USHORT  Reserved;
+		union {
+			ULONG   RawValue; // for values
+			BOOLEAN On; // for buttons MUST BE TRUE for buttons.
+		};
+	} HIDP_DATA, *PHIDP_DATA;
+
 	typedef BOOLEAN (__stdcall *HidD_GetAttributes_)(HANDLE device, PHIDD_ATTRIBUTES attrib);
 	typedef BOOLEAN (__stdcall *HidD_GetSerialNumberString_)(HANDLE device, PVOID buffer, ULONG buffer_len);
 	typedef BOOLEAN (__stdcall *HidD_GetManufacturerString_)(HANDLE handle, PVOID buffer, ULONG buffer_len);
