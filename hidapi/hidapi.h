@@ -141,6 +141,15 @@ extern "C" {
 		*/
 		void  HID_API_EXPORT HID_API_CALL hid_free_enumeration(struct hid_device_info *devs);
 
+		/** @brief Free a capability descriptor
+
+		This function frees a capability descriptor created by hid_open_path().
+
+		@ingroup API
+		@param descriptor Pointer to the capability descriptor to be freed
+		*/
+		void  HID_API_EXPORT HID_API_CALL hid_free_descriptor(unsigned char *descriptor);
+
 		/** @brief Open a HID device using a Vendor ID (VID), Product ID
 			(PID) and optionally a serial number.
 
@@ -166,13 +175,14 @@ extern "C" {
 			Linux).
 
 			@ingroup API
-		    @param path The path name of the device to open
+			@param path The path name of the device to open
+			@param descriptor The capability descriptor of the device
 
 			@returns
 				This function returns a pointer to a #hid_device object on
 				success or NULL on failure.
 		*/
-		HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path);
+		HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path, unsigned char **descriptor);
 
 		/** @brief Write an Output report to a HID device.
 

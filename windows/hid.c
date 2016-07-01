@@ -167,9 +167,8 @@ extern "C" {
 	typedef BOOLEAN (__stdcall *HidD_GetPreparsedData_)(HANDLE handle, PHIDP_PREPARSED_DATA *preparsed_data);
 	typedef BOOLEAN (__stdcall *HidD_FreePreparsedData_)(PHIDP_PREPARSED_DATA preparsed_data);
 	typedef NTSTATUS (__stdcall *HidP_GetCaps_)(PHIDP_PREPARSED_DATA preparsed_data, HIDP_CAPS *caps);
-	typedef NTSTATUS(__stdcall *HidP_GetCaps_)(PHIDP_PREPARSED_DATA preparsed_data, HIDP_CAPS *caps);
-	typedef NTSTATUS(__stdcall *HidP_GetButtonCaps_)(HIDP_REPORT_TYPE report_type, PHIDP_BUTTON_CAPS button_caps, PUSHORT button_caps_length, PHIDP_PREPARSED_DATA preparsed_data);
-	typedef NTSTATUS(__stdcall *HidP_SetData_)(HIDP_REPORT_TYPE ReportType, PHIDP_DATA DataList, PULONG DataLength, PHIDP_PREPARSED_DATA PreparsedData, PCHAR Report, ULONG ReportLength);
+	typedef NTSTATUS (__stdcall *HidP_GetButtonCaps_)(HIDP_REPORT_TYPE report_type, PHIDP_BUTTON_CAPS button_caps, PUSHORT button_caps_length, PHIDP_PREPARSED_DATA preparsed_data);
+	typedef NTSTATUS (__stdcall *HidP_SetData_)(HIDP_REPORT_TYPE ReportType, PHIDP_DATA DataList, PULONG DataLength, PHIDP_PREPARSED_DATA PreparsedData, PCHAR Report, ULONG ReportLength);
 	typedef BOOLEAN (__stdcall *HidD_SetNumInputBuffers_)(HANDLE handle, ULONG number_buffers);
 
 	static HidD_GetAttributes_ HidD_GetAttributes;
@@ -574,6 +573,10 @@ void  HID_API_EXPORT HID_API_CALL hid_free_enumeration(struct hid_device_info *d
 	}
 }
 
+void  HID_API_EXPORT HID_API_CALL hid_free_descriptor(unsigned char *descriptor)
+{
+	HidD_FreePreparsedData(descriptor);
+}
 
 HID_API_EXPORT hid_device * HID_API_CALL hid_open(unsigned short vendor_id, unsigned short product_id, const wchar_t *serial_number)
 {
@@ -603,7 +606,7 @@ HID_API_EXPORT hid_device * HID_API_CALL hid_open(unsigned short vendor_id, unsi
 
 	if (path_to_open) {
 		/* Open the device */
-		handle = hid_open_path(path_to_open);
+		handle = hid_open_path(path_to_open, NULL);
 	}
 
 	hid_free_enumeration(devs);
@@ -611,7 +614,7 @@ HID_API_EXPORT hid_device * HID_API_CALL hid_open(unsigned short vendor_id, unsi
 	return handle;
 }
 
-HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path)
+HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path, unsigned char **descriptor)
 {
 	hid_device *dev;
 	HIDP_CAPS caps;
@@ -655,8 +658,12 @@ HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path)
 	}
 	dev->output_report_length = caps.OutputReportByteLength;
 	dev->input_report_length = caps.InputReportByteLength;
-	HidD_FreePreparsedData(pp_data);
-
+	if (descriptor) {
+		*descriptor = (unsigned char*)pp_data;
+	}
+	else {
+		HidD_FreePreparsedData(pp_data);
+	}
 	dev->read_buf = (char*) malloc(dev->input_report_length);
 
 	return dev;
