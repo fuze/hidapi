@@ -148,7 +148,7 @@ extern "C" {
 		@ingroup API
 		@param descriptor Pointer to the capability descriptor to be freed
 		*/
-		void  HID_API_EXPORT HID_API_CALL hid_free_descriptor(unsigned char *descriptor);
+		void  HID_API_EXPORT HID_API_CALL hid_free_descriptor(void *descriptor);
 
 		/** @brief Open a HID device using a Vendor ID (VID), Product ID
 			(PID) and optionally a serial number.
@@ -182,7 +182,7 @@ extern "C" {
 				This function returns a pointer to a #hid_device object on
 				success or NULL on failure.
 		*/
-		HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path, unsigned char **descriptor);
+		HID_API_EXPORT hid_device * HID_API_CALL hid_open_path(const char *path, void **descriptor);
 
 		/** @brief Write an Output report to a HID device.
 

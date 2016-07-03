@@ -24,6 +24,8 @@
 
 #include <IOKit/hid/IOHIDManager.h>
 #include <IOKit/hid/IOHIDKeys.h>
+#include <IOKit/IOCFPlugIn.h>
+#include <IOKit/usb/IOUSBLib.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <wchar.h>
 #include <locale.h>
@@ -45,6 +47,9 @@ typedef struct pthread_barrier
     int count;
     int trip_count;
 } pthread_barrier_t;
+
+#define OSX_HID_DEVICE_CLASS 0x03
+#define OSX_HID_DESCRIPTOR_SIZE 1024
 
 static int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
 {
@@ -366,7 +371,6 @@ static wchar_t *dup_wcs(const wchar_t *s)
     return ret;
 }
 
-
 static int make_path(IOHIDDeviceRef device, char *buf, size_t len)
 {
     int res;
@@ -395,6 +399,23 @@ static int make_path(IOHIDDeviceRef device, char *buf, size_t len)
 
     buf[len-1] = '\0';
     return res+1;
+}
+
+static int make_path(IOUSBDeviceInterface **device, char *path, size_t path_size)
+{
+    UInt32 location_id;
+    (*device)->GetLocationID(device, &location_id);
+
+    unsigned short vendor_id;
+    (*device)->GetDeviceVendor(device, &vendor_id);
+
+    unsigned short product_id;
+    (*device)->GetDeviceProduct(device, &product_id);
+
+    path[0] = '\0';
+    int retval = snprintf(path, path_size, "USB_%04hx_%04hx_%x", vendor_id, product_id, location_id);
+
+    return retval + 1;
 }
 
 /* Initialize the IOHIDManager. Return 0 for success and -1 for failure. */
@@ -570,6 +591,11 @@ void  HID_API_EXPORT hid_free_enumeration(struct hid_device_info *devs)
         free(d);
         d = next;
     }
+}
+
+void  HID_API_EXPORT hid_free_descriptor(void *descriptor)
+{
+    delete [] reinterpret_cast<unsigned char *>(descriptor);
 }
 
 hid_device * HID_API_EXPORT hid_open(unsigned short vendor_id, unsigned short product_id, const wchar_t *serial_number)
@@ -754,7 +780,175 @@ static void *read_thread(void *param)
     return NULL;
 }
 
-hid_device * HID_API_EXPORT hid_open_path(const char *path)
+void hid_query_usb_descriptor(IOUSBDeviceInterface **usb_device, void **descriptor)
+{
+    io_iterator_t it;
+
+    IOUSBFindInterfaceRequest request;
+    request.bInterfaceClass = kIOUSBFindInterfaceDontCare;
+    request.bInterfaceSubClass = kIOUSBFindInterfaceDontCare;
+    request.bInterfaceProtocol = kIOUSBFindInterfaceDontCare;
+    request.bAlternateSetting = kIOUSBFindInterfaceDontCare;
+
+    IOReturn kr = (*usb_device)->CreateInterfaceIterator(usb_device, &request, &it);
+
+    io_service_t usb_interface;
+    unsigned int interface_number = 0;
+    bool found = false;
+
+    // Get matching interface and request HID descriptor.
+    while ((usb_interface = IOIteratorNext(it)) && !found)
+    {
+        // Get the plug-in interface for this device.
+        SInt32 score;
+        IOCFPlugInInterface **plugin_interface = NULL;
+        kr = IOCreatePlugInInterfaceForService(usb_interface,
+            kIOUSBInterfaceUserClientTypeID, kIOCFPlugInInterfaceID,
+            &plugin_interface, &score);
+
+        // Free USB interface at this point, since it's no logner needed.
+        IOObjectRelease(usb_interface);
+
+        if (kr != kIOReturnSuccess || !plugin_interface)
+        {
+            break;
+        }
+
+        // Get the interface for the USB interface (meta).
+        IOUSBInterfaceInterface **interface = NULL;
+        HRESULT hr = (*plugin_interface)->QueryInterface(plugin_interface,
+            CFUUIDGetUUIDBytes(kIOUSBInterfaceInterfaceID), (LPVOID *)&interface);
+
+        // Done with plug-in interface now, so free it.
+        (*plugin_interface)->Release(plugin_interface);
+
+        if (hr || !interface)
+        {
+            break;
+        }
+
+        // Figure out which interface class this is.
+        UInt8 interface_class;
+        kr = (*interface)->GetInterfaceClass(interface, &interface_class);
+
+        if (kr != kIOReturnSuccess)
+        {
+            break;
+        }
+
+        // If we have a HID match, go ahead and request the descriptor.
+        if (interface_class == OSX_HID_DEVICE_CLASS)
+        {
+            IOUSBDevRequest request;
+            bzero(&request, sizeof(request));
+
+            *descriptor = new unsigned char[OSX_HID_DESCRIPTOR_SIZE];
+
+            request.bmRequestType = USBmakebmRequestType(kUSBIn, kUSBStandard, kUSBInterface);
+            request.bRequest = kUSBRqGetDescriptor;
+            request.wValue = (kUSBReportDesc << 8) | 0;
+            request.wIndex = interface_number;
+            request.wLength = OSX_HID_DESCRIPTOR_SIZE;
+            request.pData = *descriptor;
+
+            if (kIOReturnSuccess == (*usb_device)->DeviceRequest(usb_device, &request))
+            {
+                found = true;
+            }
+        }
+
+        (*interface)->Release(interface);
+        interface_number++;
+    }
+}
+
+bool hid_query_usb_device(io_service_t device, const char *path, void **descriptor)
+{
+    // Get the plug-in interface for this device.
+    SInt32 score;
+    IOCFPlugInInterface **plugin_interface = NULL;
+    kern_return_t kr = IOCreatePlugInInterfaceForService(device,
+        kIOUSBDeviceUserClientTypeID, kIOCFPlugInInterfaceID,
+        &plugin_interface, &score);
+
+    if (kr != kIOReturnSuccess || !plugin_interface)
+    {
+        return false;
+    }
+
+    // Now create the device interface.
+    IOUSBDeviceInterface **usb_device_interface = NULL;
+    HRESULT hr = (*plugin_interface)->QueryInterface(plugin_interface,
+        CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID),
+        (LPVOID *)&usb_device_interface);
+
+    // Clean up.
+    (*plugin_interface)->Release(plugin_interface);
+
+    if (hr || !usb_device_interface)
+    {
+        return false;
+    }
+
+    // Check if USB interface matches the HID.
+    char this_path[BUF_LEN];
+    make_path(usb_device_interface, this_path, sizeof(this_path));
+
+    if (strcmp(this_path, path) != 0)
+    {
+        return false;
+    }
+
+    // Get the RAW descriptor through the USB interface.
+    hid_query_usb_descriptor(usb_device_interface, descriptor);
+
+    return true;
+}
+
+bool hid_get_descriptor(const char *path, void **descriptor)
+{
+    // Get the master port.
+    mach_port_t master_port;
+    kern_return_t kr = IOMasterPort(MACH_PORT_NULL, &master_port);
+
+    if (kr != kIOReturnSuccess)
+    {
+        return false;
+    }
+
+    // Get the dictionary of the USB devices.
+    CFMutableDictionaryRef usb_dictionary = NULL;
+    usb_dictionary = IOServiceMatching(kIOUSBDeviceClassName);
+
+    if (usb_dictionary == NULL)
+    {
+        return false;
+    }
+
+    // Get an iterator for USB devices based on master_port.
+    io_iterator_t it;
+    kr = IOServiceGetMatchingServices(master_port, usb_dictionary, &it);
+
+    if (kr != KERN_SUCCESS)
+    {
+        return false;
+    }
+
+    // Go through each device and find the one that matches.
+    bool found = false;
+    io_service_t device;
+    while ((device = IOIteratorNext(it)) && !found)
+    {
+        found = hid_query_usb_device(device, path, descriptor);
+        IOObjectRelease(device);
+    }
+
+    IOObjectRelease(it);
+
+    return found;
+}
+
+hid_device * HID_API_EXPORT hid_open_path(const char *path, void **descriptor)
 {
     int i;
     hid_device *dev = NULL;
@@ -817,6 +1011,13 @@ hid_device * HID_API_EXPORT hid_open_path(const char *path)
 
                 /* Wait here for the read thread to be initialized. */
                 pthread_barrier_wait(&dev->barrier);
+
+                if (descriptor)
+                {
+                    *descriptor = NULL;
+
+                    hid_get_descriptor(path, descriptor);
+                }
 
                 return dev;
             }

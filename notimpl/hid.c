@@ -20,12 +20,17 @@ void  HID_API_EXPORT hid_free_enumeration(struct hid_device_info *devs)
     return;
 }
 
+void  HID_API_EXPORT hid_free_descriptor(void *descriptor)
+{
+    return;
+}
+
 hid_device * HID_API_EXPORT hid_open(unsigned short vendor_id, unsigned short product_id, const wchar_t *serial_number)
 {
 	return NULL;
 }
 
-hid_device * HID_API_EXPORT hid_open_path(const char *path)
+hid_device * HID_API_EXPORT hid_open_path(const char *path, void **descriptor)
 {
 	return NULL;
 }
