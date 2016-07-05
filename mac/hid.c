@@ -843,6 +843,7 @@ void hid_query_usb_descriptor(IOUSBDeviceInterface **usb_device, void **descript
             bzero(&request, sizeof(request));
 
             *descriptor = new unsigned char[OSX_HID_DESCRIPTOR_SIZE];
+            bzero(*descriptor, OSX_HID_DESCRIPTOR_SIZE);
 
             request.bmRequestType = USBmakebmRequestType(kUSBIn, kUSBStandard, kUSBInterface);
             request.bRequest = kUSBRqGetDescriptor;
