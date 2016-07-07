@@ -533,14 +533,16 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 
             cur_dev = tmp;
 
-            /* Get the Usage Page and Usage for this device. */
-            cur_dev->usage_page = get_int_property(dev, CFSTR(kIOHIDPrimaryUsagePageKey));
-
-            // TODO: there is a bug with the usage page that appears to be endian-related
-            // (in this case, unnecessary swapping) so assuming Telephony for Mac, since
-            // the enumeration filter will already take care of this, but technically should
-            // be fixed for future-proofing.
-            cur_dev->usage_page = 0xb;
+            /* Get the Usage Page and Usage; if the device supports telephony,
+               allow it to take precedence over any other Usage Pages) */
+            if (IOHIDDeviceConformsTo(dev, kHIDPage_Telephony, kHIDUsage_Tfon_Headset))
+            {
+                cur_dev->usage_page = kHIDPage_Telephony;
+            }
+            else
+            {
+                cur_dev->usage_page = get_int_property(dev, CFSTR(kIOHIDPrimaryUsagePageKey));
+            }
 
             cur_dev->usage = get_int_property(dev, CFSTR(kIOHIDPrimaryUsageKey));
 
