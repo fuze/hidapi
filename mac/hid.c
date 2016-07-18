@@ -49,7 +49,7 @@ typedef struct pthread_barrier
 } pthread_barrier_t;
 
 #define OSX_HID_DEVICE_CLASS 0x03
-#define OSX_HID_DESCRIPTOR_SIZE 1024
+#define OSX_HID_DESCRIPTOR_SIZE 4096
 
 static int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
 {
@@ -535,16 +535,29 @@ struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, 
 
             /* Get the Usage Page and Usage; if the device supports telephony,
                allow it to take precedence over any other Usage Pages) */
-            if (IOHIDDeviceConformsTo(dev, kHIDPage_Telephony, kHIDUsage_Tfon_Headset))
+            static const unsigned short RecognizedTelephonyUsages[] =
             {
-                cur_dev->usage_page = kHIDPage_Telephony;
-            }
-            else
+                kHIDUsage_Tfon_Headset, kHIDUsage_Tfon_Handset, kHIDUsage_Tfon_Phone,
+                kHIDUsage_Tfon_AnsweringMachine, kHIDUsage_Tfon_MessageControls
+            };
+
+            bool foundTelephonyUsage = false;
+            for (int index = 0, count = sizeof(RecognizedTelephonyUsages) / sizeof(RecognizedTelephonyUsages[0]);
+                 index < count && !foundTelephonyUsage; index++)
             {
-                cur_dev->usage_page = get_int_property(dev, CFSTR(kIOHIDPrimaryUsagePageKey));
+                if (IOHIDDeviceConformsTo(dev, kHIDPage_Telephony, RecognizedTelephonyUsages[index]))
+                {
+                    cur_dev->usage_page = kHIDPage_Telephony;
+                    cur_dev->usage = RecognizedTelephonyUsages[index];
+                    foundTelephonyUsage = true;
+                }
             }
 
-            cur_dev->usage = get_int_property(dev, CFSTR(kIOHIDPrimaryUsageKey));
+            if (!foundTelephonyUsage)
+            {
+                cur_dev->usage_page = get_int_property(dev, CFSTR(kIOHIDPrimaryUsagePageKey));
+                cur_dev->usage = get_int_property(dev, CFSTR(kIOHIDPrimaryUsageKey));
+            }
 
             /* Fill out the record */
             cur_dev->next = NULL;
