@@ -466,7 +466,9 @@ static void process_pending_events(void)
     do
     {
         res = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.001, FALSE);
-    } while (res != kCFRunLoopRunFinished && res != kCFRunLoopRunTimedOut);
+    } while (res != kCFRunLoopRunFinished
+             && res != kCFRunLoopRunTimedOut
+             && res != kCFRunLoopRunStopped);
 }
 
 struct hid_device_info  HID_API_EXPORT *hid_enumerate(unsigned short vendor_id, unsigned short product_id)
